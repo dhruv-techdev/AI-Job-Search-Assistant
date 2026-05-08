@@ -14,6 +14,7 @@ import { extractTextFromPDF } from "../shared/pdf.js";
 import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
 import { JobPostingSchema, type JobPosting } from "../shared/types.js";
 import { buildJobExtractionPrompt } from "./prompts.js";
+import { researchCompany } from "./company-research.js";
 
 dotenv.config();
 
@@ -23,7 +24,8 @@ interface MarketOptions {
 }
 
 /**
- * Extracts structured job data from a single PDF using LLM + Zod validation.
+ * Extracts structured job data from a single PDF using LLM + Zod validation,
+ * then enriches with company research.
  */
 async function extractJobPosting(pdfPath: string): Promise<JobPosting> {
   const fileName = path.basename(pdfPath);
@@ -60,7 +62,14 @@ async function extractJobPosting(pdfPath: string): Promise<JobPosting> {
     throw new Error(`Schema validation failed for ${fileName}:\n${issues}`);
   }
 
-  return result.data;
+  // 5. Enrich with company research
+  const jobData = result.data;
+  if (jobData.companyName) {
+    const research = await researchCompany(jobData.companyName);
+    jobData.companyResearch = research;
+  }
+
+  return jobData;
 }
 
 export async function runMarketAnalysis(options: MarketOptions = {}): Promise<void> {
@@ -117,6 +126,12 @@ export async function runMarketAnalysis(options: MarketOptions = {}): Promise<vo
 
       spinner.succeed(`[${i + 1}/${toProcess.length}] ${jobData.jobTitle} at ${jobData.companyName}`);
       logger.info(`  Skills: ${jobData.requiredSkills.slice(0, 5).join(", ")}${jobData.requiredSkills.length > 5 ? "..." : ""}`);
+      if (jobData.companyResearch?.companySize) {
+        logger.info(`  Company: ${jobData.companyResearch.companySize}`);
+      }
+      if (jobData.companyResearch && jobData.companyResearch.cultureSignals.length > 0) {
+        logger.info(`  Culture: ${jobData.companyResearch.cultureSignals.join(", ")}`);
+      }
       logger.info(`  Saved: ${outputPath}`);
       successCount++;
     } catch (error: unknown) {
