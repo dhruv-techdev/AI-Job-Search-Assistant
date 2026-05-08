@@ -1,0 +1,16 @@
+{
+  "name": "job-search-assistant",
+  "version": "1.0.0",
+  "description": "AI-powered Job Search and Application Intelligence Assistant",
+  "type": "module",
+  "scripts": {
+    "market": "tsx src/index.ts market",
+    "gaps": "tsx src/index.ts gaps",
+    "advise": "tsx src/index.ts advise",
+    "eval": "tsx src/index.ts eval",
+    "start": "tsx src/index.ts",
+    "help": "tsx src/index.ts --help"
+  },
+  "keywords": ["ai", "job-search", "career", "typescript", "cli"],
+  "license": "MIT"
+}
