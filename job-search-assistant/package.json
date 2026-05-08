@@ -1,0 +1,35 @@
+{
+  "name": "job-search-assistant",
+  "version": "1.0.0",
+  "description": "AI-powered Job Search and Application Intelligence Assistant",
+  "type": "module",
+  "scripts": {
+    "market": "tsx src/extract/index.ts",
+    "gaps": "tsx src/analysis/index.ts",
+    "advise": "tsx src/advisor/index.ts",
+    "eval": "tsx src/eval/index.ts",
+    "start": "echo 'Use: npm run market | npm run gaps | npm run advise | npm run eval'"
+  },
+  "keywords": [
+    "ai",
+    "job-search",
+    "career",
+    "typescript",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5",
+    "openai": "^4.52.0",
+    "ora": "^8.0.1",
+    "pdf-parse": "^1.1.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  }
+}

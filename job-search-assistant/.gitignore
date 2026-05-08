@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+data/jobs/*.json
+data/resume/*.json
+data/analysis/*.json
+reports/*.md
+reports/*.html
+reports/*.json
+eval/*.json
+eval/*.md
+*.DS_Store
