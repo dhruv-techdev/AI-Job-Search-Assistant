@@ -10,10 +10,10 @@ const client = new OpenAI({
 });
 
 export const MODELS = {
-  primary: "deepseek/deepseek-chat-v3-0324:free",
-  secondary: "qwen/qwen3-32b:free",
-  creative: "meta-llama/llama-3.3-70b-instruct:free",
-  fast: "mistralai/mistral-7b-instruct:free",
+  primary: "meta-llama/llama-3.3-70b-instruct:free",
+  secondary: "nvidia/nemotron-3-super-120b-a12b:free",
+  creative: "google/gemma-4-31b-it:free",
+  fast: "meta-llama/llama-3.2-3b-instruct:free",
 } as const;
 
 export type ModelKey = keyof typeof MODELS;

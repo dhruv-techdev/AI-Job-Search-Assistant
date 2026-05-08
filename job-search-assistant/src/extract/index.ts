@@ -1,9 +1,9 @@
 import dotenv from "dotenv";
 import path from "path";
+import ora from "ora";
 import { logger } from "../shared/logger.js";
 import {
   scanForPDFs,
-  validatePDFFile,
   isAlreadyProcessed,
   getJobJSONPath,
   saveJSON,
@@ -11,12 +11,56 @@ import {
   PATHS,
 } from "../shared/tools.js";
 import { extractTextFromPDF } from "../shared/pdf.js";
+import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { JobPostingSchema, type JobPosting } from "../shared/types.js";
+import { buildJobExtractionPrompt } from "./prompts.js";
 
 dotenv.config();
 
 interface MarketOptions {
   force?: boolean;
   verbose?: boolean;
+}
+
+/**
+ * Extracts structured job data from a single PDF using LLM + Zod validation.
+ */
+async function extractJobPosting(pdfPath: string): Promise<JobPosting> {
+  const fileName = path.basename(pdfPath);
+
+  // 1. Extract text from PDF
+  const text = await extractTextFromPDF(pdfPath);
+  logger.debug(`  Extracted ${text.length} chars from PDF`);
+
+  // 2. Build prompt and call LLM
+  const prompt = buildJobExtractionPrompt(text, fileName);
+  const rawResponse = await callLLMWithRetry(prompt, {
+    model: "primary",
+    temperature: 0.1,
+    maxTokens: 4096,
+    jsonMode: true,
+    fallbackModels: ["secondary"],
+  });
+
+  // 3. Parse JSON from response
+  const jsonStr = extractJSON(rawResponse);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(`LLM returned invalid JSON for ${fileName}:\n${jsonStr.substring(0, 300)}`);
+  }
+
+  // 4. Validate with Zod schema
+  const result = JobPostingSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+      .join("\n");
+    throw new Error(`Schema validation failed for ${fileName}:\n${issues}`);
+  }
+
+  return result.data;
 }
 
 export async function runMarketAnalysis(options: MarketOptions = {}): Promise<void> {
@@ -30,7 +74,7 @@ export async function runMarketAnalysis(options: MarketOptions = {}): Promise<vo
     return;
   }
 
-  // Step 2: Filter out already processed (unless force)
+  // Step 2: Filter already processed (unless force)
   const toProcess: string[] = [];
   const skipped: string[] = [];
 
@@ -47,60 +91,43 @@ export async function runMarketAnalysis(options: MarketOptions = {}): Promise<vo
   }
 
   if (toProcess.length === 0) {
-    logger.info("All job postings already processed. Nothing to do.");
-    logger.info("Use --force flag to reprocess all files.");
-    // TODO: Continue to market analysis generation in future story
+    logger.info("All job postings already processed.");
+    // TODO: Continue to market analysis generation (future story)
     return;
   }
 
   logger.info(`Processing ${toProcess.length} job posting(s)...\n`);
 
-  // Step 3: Extract text from each PDF
+  // Step 3: Extract each posting
   let successCount = 0;
   let failCount = 0;
+  const failures: { file: string; error: string }[] = [];
 
   for (let i = 0; i < toProcess.length; i++) {
     const pdfPath = toProcess[i];
     const fileName = path.basename(pdfPath);
-    logger.info(`[${i + 1}/${toProcess.length}] Processing: ${fileName}`);
+    const spinner = ora(`[${i + 1}/${toProcess.length}] ${fileName}`).start();
 
-    // Validate
-    const validation = validatePDFFile(pdfPath);
-    if (!validation.valid) {
-      logger.error(`  Validation failed: ${validation.error}`);
-      failCount++;
-      continue;
-    }
-
-    // Extract text
     try {
-      const text = await extractTextFromPDF(pdfPath);
-      logger.success(`  Extracted ${text.length} characters`);
+      const jobData = await extractJobPosting(pdfPath);
 
-      // TODO: Send to LLM for structured extraction (future story)
-      // TODO: Validate with Zod schema (future story)
-      // TODO: Research company via Tavily (future story)
-
-      // For now, save raw extraction as placeholder
+      // Save validated JSON
       const outputPath = getJobJSONPath(pdfPath);
-      saveJSON(outputPath, {
-        _status: "text_extracted",
-        _sourceFile: fileName,
-        _extractedAt: new Date().toISOString(),
-        _textLength: text.length,
-        _textPreview: text.substring(0, 500) + "...",
-        rawText: text,
-      });
+      saveJSON(outputPath, jobData);
 
-      logger.success(`  Saved: ${outputPath}`);
+      spinner.succeed(`[${i + 1}/${toProcess.length}] ${jobData.jobTitle} at ${jobData.companyName}`);
+      logger.info(`  Skills: ${jobData.requiredSkills.slice(0, 5).join(", ")}${jobData.requiredSkills.length > 5 ? "..." : ""}`);
+      logger.info(`  Saved: ${outputPath}`);
       successCount++;
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      logger.error(`  Extraction failed: ${errMsg}`);
+      spinner.fail(`[${i + 1}/${toProcess.length}] ${fileName} — FAILED`);
+      logger.error(`  ${errMsg}`);
+      failures.push({ file: fileName, error: errMsg });
       failCount++;
     }
 
-    console.log(); // blank line between files
+    console.log();
   }
 
   // Summary
@@ -110,6 +137,9 @@ export async function runMarketAnalysis(options: MarketOptions = {}): Promise<vo
   logger.success(`Extracted:         ${successCount}`);
   if (failCount > 0) {
     logger.error(`Failed:            ${failCount}`);
+    for (const f of failures) {
+      logger.error(`  - ${f.file}: ${f.error.split("\n")[0]}`);
+    }
   }
 
   // TODO: Generate market analysis from extracted data (future story)
