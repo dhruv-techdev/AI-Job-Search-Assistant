@@ -15,6 +15,8 @@ import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
 import { JobPostingSchema, type JobPosting } from "../shared/types.js";
 import { buildJobExtractionPrompt } from "./prompts.js";
 import { researchCompany } from "./company-research.js";
+import { loadExtractedJobs, generateMarketAnalysis, saveMarketAnalysis } from "./market-analysis.js";
+import { generateMarketReport } from "./market-report.js";
 
 dotenv.config();
 
@@ -99,67 +101,91 @@ export async function runMarketAnalysis(options: MarketOptions = {}): Promise<vo
     logger.info(`Skipping ${skipped.length} already processed file(s). Use --force to reprocess.`);
   }
 
-  if (toProcess.length === 0) {
-    logger.info("All job postings already processed.");
-    // TODO: Continue to market analysis generation (future story)
-    return;
-  }
+  // Step 3: Extract new postings
+  if (toProcess.length > 0) {
+    logger.info(`Processing ${toProcess.length} job posting(s)...\n`);
 
-  logger.info(`Processing ${toProcess.length} job posting(s)...\n`);
+    let successCount = 0;
+    let failCount = 0;
+    const failures: { file: string; error: string }[] = [];
 
-  // Step 3: Extract each posting
-  let successCount = 0;
-  let failCount = 0;
-  const failures: { file: string; error: string }[] = [];
+    for (let i = 0; i < toProcess.length; i++) {
+      const pdfPath = toProcess[i];
+      const fileName = path.basename(pdfPath);
+      const spinner = ora(`[${i + 1}/${toProcess.length}] ${fileName}`).start();
 
-  for (let i = 0; i < toProcess.length; i++) {
-    const pdfPath = toProcess[i];
-    const fileName = path.basename(pdfPath);
-    const spinner = ora(`[${i + 1}/${toProcess.length}] ${fileName}`).start();
+      try {
+        const jobData = await extractJobPosting(pdfPath);
+        const outputPath = getJobJSONPath(pdfPath);
+        saveJSON(outputPath, jobData);
 
-    try {
-      const jobData = await extractJobPosting(pdfPath);
-
-      // Save validated JSON
-      const outputPath = getJobJSONPath(pdfPath);
-      saveJSON(outputPath, jobData);
-
-      spinner.succeed(`[${i + 1}/${toProcess.length}] ${jobData.jobTitle} at ${jobData.companyName}`);
-      logger.info(`  Skills: ${jobData.requiredSkills.slice(0, 5).join(", ")}${jobData.requiredSkills.length > 5 ? "..." : ""}`);
-      if (jobData.companyResearch?.companySize) {
-        logger.info(`  Company: ${jobData.companyResearch.companySize}`);
+        spinner.succeed(`[${i + 1}/${toProcess.length}] ${jobData.jobTitle} at ${jobData.companyName}`);
+        logger.info(`  Skills: ${jobData.requiredSkills.slice(0, 5).join(", ")}${jobData.requiredSkills.length > 5 ? "..." : ""}`);
+        if (jobData.companyResearch?.companySize) {
+          logger.info(`  Company: ${jobData.companyResearch.companySize}`);
+        }
+        logger.info(`  Saved: ${outputPath}`);
+        successCount++;
+      } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        spinner.fail(`[${i + 1}/${toProcess.length}] ${fileName} — FAILED`);
+        logger.error(`  ${errMsg}`);
+        failures.push({ file: fileName, error: errMsg });
+        failCount++;
       }
-      if (jobData.companyResearch && jobData.companyResearch.cultureSignals.length > 0) {
-        logger.info(`  Culture: ${jobData.companyResearch.cultureSignals.join(", ")}`);
-      }
-      logger.info(`  Saved: ${outputPath}`);
-      successCount++;
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      spinner.fail(`[${i + 1}/${toProcess.length}] ${fileName} — FAILED`);
-      logger.error(`  ${errMsg}`);
-      failures.push({ file: fileName, error: errMsg });
-      failCount++;
+
+      console.log();
     }
 
+    logger.info("=== Extraction Summary ===");
+    logger.info(`Total PDFs found:  ${pdfFiles.length}`);
+    logger.info(`Skipped (cached):  ${skipped.length}`);
+    logger.success(`Extracted:         ${successCount}`);
+    if (failCount > 0) {
+      logger.error(`Failed:            ${failCount}`);
+      for (const f of failures) {
+        logger.error(`  - ${f.file}: ${f.error.split("\n")[0]}`);
+      }
+    }
     console.log();
   }
 
-  // Summary
-  logger.info("=== Extraction Summary ===");
-  logger.info(`Total PDFs found:  ${pdfFiles.length}`);
-  logger.info(`Skipped (cached):  ${skipped.length}`);
-  logger.success(`Extracted:         ${successCount}`);
-  if (failCount > 0) {
-    logger.error(`Failed:            ${failCount}`);
-    for (const f of failures) {
-      logger.error(`  - ${f.file}: ${f.error.split("\n")[0]}`);
-    }
+  // Step 4: Generate market analysis from ALL extracted jobs
+  logger.info("=== Generating Market Analysis ===");
+  const allJobs = loadExtractedJobs();
+
+  if (allJobs.length === 0) {
+    logger.error("No valid job postings to analyze.");
+    return;
   }
 
-  // TODO: Generate market analysis from extracted data (future story)
-  logger.warn("Market analysis generation not yet implemented.");
-  logger.success("Extraction workflow completed.");
+  try {
+    const analysis = generateMarketAnalysis(allJobs);
+    saveMarketAnalysis(analysis);
+    generateMarketReport(analysis);
+
+    // Print summary
+    console.log();
+    logger.info("=== Market Analysis Summary ===");
+    logger.info(`Postings analyzed: ${analysis.totalPostingsAnalyzed}`);
+    logger.info(`Top 5 required skills:`);
+    for (const s of analysis.topRequiredSkills.slice(0, 5)) {
+      logger.info(`  - ${s.skill} (${s.percentage}% of postings)`);
+    }
+    logger.info(`Experience: Entry=${analysis.experienceLevels.entry}, Mid=${analysis.experienceLevels.mid}, Senior=${analysis.experienceLevels.senior}`);
+    if (analysis.salaryRange) {
+      logger.info(`Salary: ${analysis.salaryRange.currency || ""} ${analysis.salaryRange.min?.toLocaleString() || "N/A"} - ${analysis.salaryRange.max?.toLocaleString() || "N/A"}`);
+    }
+    logger.info(`Remote: ${analysis.remoteWorkTrends.remote} | Hybrid: ${analysis.remoteWorkTrends.hybrid} | Onsite: ${analysis.remoteWorkTrends.onsite}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`Market analysis generation failed: ${errMsg}`);
+    return;
+  }
+
+  logger.success("\nMarket analysis workflow completed!");
+  logger.info(`Reports: ${PATHS.marketAnalysis}`);
+  logger.info(`         ${path.join(PATHS.reports, "market-analysis.md")}`);
 }
 
 // Direct execution support
