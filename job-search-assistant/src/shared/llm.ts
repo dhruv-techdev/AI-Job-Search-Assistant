@@ -10,10 +10,10 @@ const client = new OpenAI({
 });
 
 export const MODELS = {
-  primary: "meta-llama/llama-3.3-70b-instruct:free",
-  secondary: "nvidia/nemotron-3-super-120b-a12b:free",
+  primary: "qwen/qwen3-coder:free",
+  secondary: "openai/gpt-oss-20b:free",
   creative: "google/gemma-4-31b-it:free",
-  fast: "meta-llama/llama-3.2-3b-instruct:free",
+  fast: "nvidia/nemotron-nano-9b-v2:free",
 } as const;
 
 export type ModelKey = keyof typeof MODELS;
