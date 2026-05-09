@@ -1,12 +1,19 @@
 import dotenv from "dotenv";
 import fs from "fs";
 import ora from "ora";
+import path from "path";
 import { logger } from "../shared/logger.js";
 import { validatePDFFile, saveJSON, ensureDirectories, PATHS } from "../shared/tools.js";
 import { extractTextFromPDF } from "../shared/pdf.js";
 import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
 import { ResumeSchema, type Resume } from "../shared/types.js";
 import { buildResumeExtractionPrompt } from "./prompts.js";
+import {
+  loadRequiredFiles,
+  generateGapAnalysis,
+  saveGapAnalysis,
+  generateGapReport,
+} from "./gap-analysis.js";
 
 dotenv.config();
 
@@ -18,26 +25,23 @@ interface GapOptions {
  * Extracts structured resume data from a PDF using LLM + Zod validation.
  */
 async function extractResume(resumePath: string): Promise<Resume> {
-  // ST-1: Validate the file
   const validation = validatePDFFile(resumePath);
   if (!validation.valid) {
     throw new Error(validation.error);
   }
 
-  // ST-2: Extract text from PDF
   const text = await extractTextFromPDF(resumePath);
   logger.debug(`Extracted ${text.length} chars from resume`);
 
-  // ST-3: Build prompt and call LLM
   const prompt = buildResumeExtractionPrompt(text);
   const rawResponse = await callLLMWithRetry(prompt, {
     model: "primary",
     temperature: 0.1,
-    maxTokens: 8192,
+    maxTokens: 4096,
+    jsonMode: true,
     fallbackModels: ["secondary"],
   });
 
-  // Parse JSON from response
   const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
@@ -46,7 +50,6 @@ async function extractResume(resumePath: string): Promise<Resume> {
     throw new Error(`LLM returned invalid JSON for resume:\n${jsonStr.substring(0, 300)}`);
   }
 
-  // ST-4: Validate with Zod schema
   const result = ResumeSchema.safeParse(parsed);
   if (!result.success) {
     const issues = result.error.issues
@@ -70,25 +73,17 @@ export async function runGapAnalysis(resumePath: string, options: GapOptions = {
 
   if (!fs.existsSync(resumePath)) {
     logger.error(`Resume file not found: ${resumePath}`);
-    logger.info("Provide the path to your resume PDF file.");
     process.exit(1);
   }
 
-  // Step 2: Check if resume already extracted
-  const existingResume = fs.existsSync(PATHS.resumeData);
-  if (existingResume) {
-    logger.info("Existing resume data found. Re-extracting from PDF...");
-  }
-
-  // Step 3: Extract resume
+  // Step 2: Extract resume
   const spinner = ora("Extracting resume data...").start();
 
+  let resumeData: Resume;
   try {
-    const resumeData = await extractResume(resumePath);
-
-    // ST-5: Save resume JSON
+    resumeData = await extractResume(resumePath);
     saveJSON(PATHS.resumeData, resumeData);
-    spinner.succeed("Resume extracted and validated successfully!");
+    spinner.succeed("Resume extracted and validated!");
 
     // Print summary
     console.log();
@@ -99,16 +94,10 @@ export async function runGapAnalysis(resumePath: string, options: GapOptions = {
     logger.info(`Hard Skills (${resumeData.hardSkills.length}): ${resumeData.hardSkills.slice(0, 8).join(", ")}${resumeData.hardSkills.length > 8 ? "..." : ""}`);
     logger.info(`Soft Skills (${resumeData.softSkills.length}): ${resumeData.softSkills.join(", ")}`);
     logger.info(`Work Experience: ${resumeData.workExperience.length} position(s)`);
-    for (const exp of resumeData.workExperience) {
-      logger.info(`  - ${exp.title} at ${exp.company}${exp.duration ? ` (${exp.duration})` : ""}`);
-    }
     logger.info(`Education: ${resumeData.education.length} entry/entries`);
     logger.info(`Projects: ${resumeData.projects.length} project(s)`);
     logger.info(`Certifications: ${resumeData.certifications.length}`);
-    logger.info(`Keywords: ${resumeData.keywords.slice(0, 10).join(", ")}${resumeData.keywords.length > 10 ? "..." : ""}`);
-
     console.log();
-    logger.success(`Resume saved: ${PATHS.resumeData}`);
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
     spinner.fail("Resume extraction failed");
@@ -116,16 +105,54 @@ export async function runGapAnalysis(resumePath: string, options: GapOptions = {
     process.exit(1);
   }
 
-  // Step 4: Check if market analysis exists for gap analysis
+  // Step 3: Check for market analysis
   if (!fs.existsSync(PATHS.marketAnalysis)) {
-    logger.warn("\nMarket analysis not found. Run 'npm run market' first to generate gap analysis.");
-    logger.info("Resume extraction is complete — gap analysis will be available after market analysis.");
+    logger.warn("Market analysis not found. Run 'npm run market' first.");
+    logger.info("Resume extracted successfully — run market analysis to enable gap analysis.");
     return;
   }
 
-  // TODO: Generate gap analysis (next story)
-  logger.warn("\nGap analysis generation not yet implemented.");
-  logger.success("Resume extraction workflow completed!");
+  // Step 4: Generate gap analysis
+  const gapSpinner = ora("Generating gap analysis...").start();
+
+  try {
+    const { market } = loadRequiredFiles();
+    const gapAnalysis = await generateGapAnalysis(resumeData, market);
+
+    saveGapAnalysis(gapAnalysis);
+    generateGapReport(gapAnalysis, resumeData);
+
+    gapSpinner.succeed("Gap analysis complete!");
+
+    // Print summary
+    console.log();
+    logger.info("=== Gap Analysis Summary ===");
+    logger.info(`Readiness Score: ${gapAnalysis.overallReadinessScore}/100`);
+    logger.info(`Strengths: ${gapAnalysis.strengths.length}`);
+    for (const s of gapAnalysis.strengths) {
+      logger.info(`  ✓ ${s.skill}`);
+    }
+    logger.info(`Gaps: ${gapAnalysis.gaps.length}`);
+    const quickWins = gapAnalysis.gaps.filter((g) => g.level === "quick_win");
+    const shortTerm = gapAnalysis.gaps.filter((g) => g.level === "short_term");
+    const medTerm = gapAnalysis.gaps.filter((g) => g.level === "medium_term");
+    const longTerm = gapAnalysis.gaps.filter((g) => g.level === "long_term");
+    if (quickWins.length > 0) logger.info(`  Quick wins: ${quickWins.map((g) => g.skill).join(", ")}`);
+    if (shortTerm.length > 0) logger.info(`  Short-term: ${shortTerm.map((g) => g.skill).join(", ")}`);
+    if (medTerm.length > 0) logger.info(`  Medium-term: ${medTerm.map((g) => g.skill).join(", ")}`);
+    if (longTerm.length > 0) logger.info(`  Long-term: ${longTerm.map((g) => g.skill).join(", ")}`);
+    logger.info(`Unique value: ${gapAnalysis.uniqueValuePoints.join("; ")}`);
+
+    console.log();
+    logger.success("Gap analysis workflow completed!");
+    logger.info(`Reports: ${PATHS.gapAnalysis}`);
+    logger.info(`         ${path.join(PATHS.reports, "gap-analysis.md")}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    gapSpinner.fail("Gap analysis failed");
+    logger.error(errMsg);
+    process.exit(1);
+  }
 }
 
 // Direct execution support

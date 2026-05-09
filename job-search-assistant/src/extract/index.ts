@@ -41,8 +41,7 @@ async function extractJobPosting(pdfPath: string): Promise<JobPosting> {
   const rawResponse = await callLLMWithRetry(prompt, {
     model: "primary",
     temperature: 0.1,
-    maxTokens: 4096,
-    jsonMode: true,
+    maxTokens: 8192,
     fallbackModels: ["secondary"],
   });
 
