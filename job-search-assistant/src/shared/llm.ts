@@ -10,9 +10,9 @@ const client = new OpenAI({
 });
 
 export const MODELS = {
-  primary: "qwen/qwen3-coder:free",
-  secondary: "openai/gpt-oss-20b:free",
-  creative: "google/gemma-4-31b-it:free",
+  primary: "openai/gpt-oss-20b:free",
+  secondary: "google/gemma-4-31b-it:free",
+  creative: "nvidia/nemotron-3-super-120b-a12b:free",
   fast: "nvidia/nemotron-nano-9b-v2:free",
 } as const;
 
@@ -116,11 +116,30 @@ export function extractJSON(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fenced) return fenced[1].trim();
 
-  const braceMatch = raw.match(/\{[\s\S]*\}/);
-  if (braceMatch) return braceMatch[0].trim();
+  const trimmed = raw.trim();
+  const firstChar = trimmed[0];
 
-  const bracketMatch = raw.match(/\[[\s\S]*\]/);
-  if (bracketMatch) return bracketMatch[0].trim();
+  // Array-first: response clearly starts with [
+  if (firstChar === "[") {
+    const bracketMatch = trimmed.match(/^\[[\s\S]*\]/);
+    if (bracketMatch) return bracketMatch[0];
 
-  return raw.trim();
+    // Truncated — salvage complete objects
+    const objects: string[] = [];
+    const objRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/g;
+    let match: RegExpExecArray | null;
+    while ((match = objRegex.exec(trimmed)) !== null) {
+      try { JSON.parse(match[0]); objects.push(match[0]); } catch { /* skip */ }
+    }
+    if (objects.length > 0) return `[${objects.join(",")}]`;
+  }
+
+  // Object-first for everything else
+  const braceMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (braceMatch) return braceMatch[0];
+
+  const bracketMatch = trimmed.match(/\[[\s\S]*\]/);
+  if (bracketMatch) return bracketMatch[0];
+
+  return trimmed;
 }
