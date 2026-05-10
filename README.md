@@ -331,4 +331,4 @@ Resume and job posting data is sensitive. Keeping everything local means your ca
 
 ## License
 
-MIT
+All Rights Reserved
