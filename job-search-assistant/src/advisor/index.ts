@@ -4,7 +4,6 @@ import ora from "ora";
 import path from "path";
 import { logger } from "../shared/logger.js";
 import { ensureDirectories, saveJSON, PATHS } from "../shared/tools.js";
-import type { ApplicationReport } from "../shared/types.js";
 import {
   extractTargetJob,
   loadCandidateContext,
@@ -17,6 +16,7 @@ import {
   generateCoverLetterDraft,
   saveCoverLetter,
 } from "./cover-letter.js";
+import { generateInterviewPrep } from "./interview-prep.js";
 
 dotenv.config();
 
@@ -32,7 +32,6 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
   logger.info("=== Application Advisor Workflow ===");
   ensureDirectories();
 
-  // Step 1: Validate job path
   if (!jobPath) {
     logger.error("Usage: npm run advise <path-to-job-posting.pdf>");
     process.exit(1);
@@ -45,7 +44,7 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
 
   const outputName = options.output || path.basename(jobPath, ".pdf").replace(/[^a-zA-Z0-9-_]/g, "-").substring(0, 60);
 
-  // Step 2: Extract target job
+  // Step 1: Extract target job
   const jobSpinner = ora("Extracting target job posting...").start();
   let jobData;
   try {
@@ -58,7 +57,7 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     process.exit(1);
   }
 
-  // Step 3: Load candidate context
+  // Step 2: Load candidate context
   let context;
   try {
     context = loadCandidateContext();
@@ -70,7 +69,7 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
 
   const { resume, gap, market } = context;
 
-  // Step 4: Generate fit assessment
+  // Step 3: Fit assessment
   const fitSpinner = ora("Analyzing candidate fit...").start();
   let fitAssessment;
   try {
@@ -83,7 +82,6 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     process.exit(1);
   }
 
-  // Print fit summary
   console.log();
   logger.info("=== Fit Assessment ===");
   logger.info(`Score: ${fitAssessment.overallScore}/100`);
@@ -93,17 +91,15 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
   const matches = fitAssessment.skillMatches.filter((s) => s.status === "match");
   const partials = fitAssessment.skillMatches.filter((s) => s.status === "partial");
   const skillGaps = fitAssessment.skillMatches.filter((s) => s.status === "gap");
-
   if (matches.length > 0) logger.info(`  ✅ Match (${matches.length}): ${matches.map((s) => s.skill).join(", ")}`);
   if (partials.length > 0) logger.info(`  🔶 Partial (${partials.length}): ${partials.map((s) => s.skill).join(", ")}`);
   if (skillGaps.length > 0) logger.info(`  ❌ Gap (${skillGaps.length}): ${skillGaps.map((s) => s.skill).join(", ")}`);
-
   logger.info(`Experience: ${fitAssessment.experienceMatch}`);
   logger.info(`Education: ${fitAssessment.educationMatch}`);
 
-  // Step 5: Generate resume adaptations
+  // Step 4: Resume adaptations
   const resumeSpinner = ora("Generating resume suggestions...").start();
-  let resumeAdaptations: ApplicationReport["resumeAdaptations"];
+  let resumeAdaptations;
   try {
     resumeAdaptations = await generateResumeAdaptations(jobData, resume);
     resumeSpinner.succeed(`Generated ${resumeAdaptations.length} resume suggestions`);
@@ -126,10 +122,8 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     }
   }
 
-  // Step 6: Generate cover letter guidance + draft
+  // Step 5: Cover letter
   let coverLetterGuidance;
-  let coverLetterText = "";
-
   if (options.coverLetter !== false) {
     const guidanceSpinner = ora("Generating cover letter guidance...").start();
     try {
@@ -139,40 +133,26 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
       console.log();
       logger.info("=== Cover Letter Strategy ===");
       logger.info("Key Points:");
-      for (const point of coverLetterGuidance.keyPoints) {
-        logger.info(`  • ${point}`);
-      }
-      logger.info("Strengths to Emphasize:");
-      for (const s of coverLetterGuidance.strengthsToEmphasize) {
-        logger.info(`  ✓ ${s}`);
-      }
+      for (const p of coverLetterGuidance.keyPoints) logger.info(`  • ${p}`);
+      logger.info("Strengths:");
+      for (const s of coverLetterGuidance.strengthsToEmphasize) logger.info(`  ✓ ${s}`);
       if (coverLetterGuidance.gapsToAddress.length > 0) {
         logger.info("Gaps to Address:");
-        for (const g of coverLetterGuidance.gapsToAddress) {
-          logger.info(`  → ${g}`);
-        }
+        for (const g of coverLetterGuidance.gapsToAddress) logger.info(`  → ${g}`);
       }
       logger.info("Company Angles:");
-      for (const a of coverLetterGuidance.companyAngles) {
-        logger.info(`  🏢 ${a}`);
-      }
+      for (const a of coverLetterGuidance.companyAngles) logger.info(`  🏢 ${a}`);
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       guidanceSpinner.fail("Cover letter guidance failed");
       logger.error(errMsg);
-      coverLetterGuidance = {
-        keyPoints: [],
-        strengthsToEmphasize: [],
-        gapsToAddress: [],
-        companyAngles: [],
-      };
+      coverLetterGuidance = { keyPoints: [], strengthsToEmphasize: [], gapsToAddress: [], companyAngles: [] };
     }
 
-    // Generate full draft
     if (coverLetterGuidance.keyPoints.length > 0) {
       const draftSpinner = ora("Writing cover letter draft...").start();
       try {
-        coverLetterText = await generateCoverLetterDraft(jobData, resume, coverLetterGuidance, "professional");
+        const coverLetterText = await generateCoverLetterDraft(jobData, resume, coverLetterGuidance, "professional");
         draftSpinner.succeed("Cover letter draft generated");
         saveCoverLetter(coverLetterText, jobData, outputName);
       } catch (error: unknown) {
@@ -182,28 +162,49 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
       }
     }
   } else {
-    logger.info("Skipping cover letter generation (--no-cover-letter).");
-    coverLetterGuidance = {
-      keyPoints: [],
-      strengthsToEmphasize: [],
-      gapsToAddress: [],
-      companyAngles: [],
-    };
+    logger.info("Skipping cover letter (--no-cover-letter).");
+    coverLetterGuidance = { keyPoints: [], strengthsToEmphasize: [], gapsToAddress: [], companyAngles: [] };
   }
 
-  // Save report
+  // Step 6: Interview preparation
+  const interviewSpinner = ora("Generating interview preparation...").start();
+  let interviewPrep;
+  try {
+    interviewPrep = await generateInterviewPrep(jobData, resume);
+    interviewSpinner.succeed(`Generated ${interviewPrep.likelyQuestions.length} interview questions`);
+
+    console.log();
+    logger.info("=== Interview Preparation ===");
+    logger.info("Likely Questions:");
+    for (let i = 0; i < interviewPrep.likelyQuestions.length; i++) {
+      const q = interviewPrep.likelyQuestions[i];
+      logger.info(`  ${i + 1}. ${q.question}`);
+      logger.info(`     → ${q.suggestedApproach}`);
+    }
+    console.log();
+    logger.info("Skills to Review:");
+    for (const s of interviewPrep.skillsToReview) logger.info(`  📖 ${s}`);
+    console.log();
+    logger.info("Company Research Points:");
+    for (const p of interviewPrep.companyResearchPoints) logger.info(`  🔍 ${p}`);
+    console.log();
+    logger.info("Talking Points:");
+    for (const t of interviewPrep.talkingPoints) logger.info(`  💬 ${t}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    interviewSpinner.fail("Interview prep failed");
+    logger.error(errMsg);
+    interviewPrep = { likelyQuestions: [], skillsToReview: [], companyResearchPoints: [], talkingPoints: [] };
+  }
+
+  // Save complete report
   const reportData = {
     jobTitle: jobData.jobTitle,
     companyName: jobData.companyName,
     fitAssessment,
     resumeAdaptations,
     coverLetterGuidance,
-    interviewPreparation: {      // TODO: US-13
-      likelyQuestions: [],
-      skillsToReview: [],
-      companyResearchPoints: [],
-      talkingPoints: [],
-    },
+    interviewPreparation: interviewPrep,
     generatedAt: new Date().toISOString(),
   };
 
@@ -211,9 +212,10 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
   saveJSON(jsonPath, reportData);
 
   console.log();
-  logger.success("Application advice generated!");
-  logger.info(`Report: ${jsonPath}`);
-  logger.warn("Interview preparation not yet implemented.");
+  logger.success("=== Application Advisor Complete! ===");
+  logger.info(`Report JSON: ${jsonPath}`);
+  logger.info(`Cover Letter: reports/cover-letter-${outputName}.md`);
+  logger.warn("Markdown and HTML report generation not yet implemented.");
 }
 
 // Direct execution support
