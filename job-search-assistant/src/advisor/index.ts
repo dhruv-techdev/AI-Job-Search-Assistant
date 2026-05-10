@@ -17,6 +17,8 @@ import {
   saveCoverLetter,
 } from "./cover-letter.js";
 import { generateInterviewPrep } from "./interview-prep.js";
+import { generateApplicationMarkdownReport } from "./markdown-report.js";
+import { generateApplicationHTMLReport } from "./html-report.js";
 
 dotenv.config();
 
@@ -66,7 +68,6 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     logger.error(errMsg);
     process.exit(1);
   }
-
   const { resume, gap, market } = context;
 
   // Step 3: Fit assessment
@@ -82,20 +83,17 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     process.exit(1);
   }
 
+  // Print fit summary
   console.log();
   logger.info("=== Fit Assessment ===");
-  logger.info(`Score: ${fitAssessment.overallScore}/100`);
-  logger.info(`Recommendation: ${getRecommendationLabel(fitAssessment.recommendation)}`);
-  logger.info(`${fitAssessment.recommendationText}`);
-
+  logger.info(`Score: ${fitAssessment.overallScore}/100 — ${getRecommendationLabel(fitAssessment.recommendation)}`);
+  logger.info(fitAssessment.recommendationText);
   const matches = fitAssessment.skillMatches.filter((s) => s.status === "match");
   const partials = fitAssessment.skillMatches.filter((s) => s.status === "partial");
   const skillGaps = fitAssessment.skillMatches.filter((s) => s.status === "gap");
   if (matches.length > 0) logger.info(`  ✅ Match (${matches.length}): ${matches.map((s) => s.skill).join(", ")}`);
   if (partials.length > 0) logger.info(`  🔶 Partial (${partials.length}): ${partials.map((s) => s.skill).join(", ")}`);
   if (skillGaps.length > 0) logger.info(`  ❌ Gap (${skillGaps.length}): ${skillGaps.map((s) => s.skill).join(", ")}`);
-  logger.info(`Experience: ${fitAssessment.experienceMatch}`);
-  logger.info(`Education: ${fitAssessment.educationMatch}`);
 
   // Step 4: Resume adaptations
   const resumeSpinner = ora("Generating resume suggestions...").start();
@@ -104,100 +102,53 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     resumeAdaptations = await generateResumeAdaptations(jobData, resume);
     resumeSpinner.succeed(`Generated ${resumeAdaptations.length} resume suggestions`);
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
     resumeSpinner.fail("Resume adaptations failed");
-    logger.error(errMsg);
+    logger.error(error instanceof Error ? error.message : String(error));
     resumeAdaptations = [];
-  }
-
-  if (resumeAdaptations.length > 0) {
-    console.log();
-    logger.info("=== Resume Suggestions ===");
-    for (let i = 0; i < resumeAdaptations.length; i++) {
-      const s = resumeAdaptations[i];
-      logger.info(`${i + 1}. [${s.section}]`);
-      logger.info(`   Current: ${s.currentContent}`);
-      logger.info(`   Change:  ${s.suggestedChange}`);
-      logger.info(`   Why:     ${s.rationale}`);
-    }
   }
 
   // Step 5: Cover letter
   let coverLetterGuidance;
   if (options.coverLetter !== false) {
-    const guidanceSpinner = ora("Generating cover letter guidance...").start();
+    const guidanceSpinner = ora("Generating cover letter...").start();
     try {
       coverLetterGuidance = await generateCoverLetterGuidance(jobData, resume);
       guidanceSpinner.succeed("Cover letter guidance generated");
 
-      console.log();
-      logger.info("=== Cover Letter Strategy ===");
-      logger.info("Key Points:");
-      for (const p of coverLetterGuidance.keyPoints) logger.info(`  • ${p}`);
-      logger.info("Strengths:");
-      for (const s of coverLetterGuidance.strengthsToEmphasize) logger.info(`  ✓ ${s}`);
-      if (coverLetterGuidance.gapsToAddress.length > 0) {
-        logger.info("Gaps to Address:");
-        for (const g of coverLetterGuidance.gapsToAddress) logger.info(`  → ${g}`);
+      if (coverLetterGuidance.keyPoints.length > 0) {
+        const draftSpinner = ora("Writing cover letter draft...").start();
+        try {
+          const coverLetterText = await generateCoverLetterDraft(jobData, resume, coverLetterGuidance, "professional");
+          draftSpinner.succeed("Cover letter draft generated");
+          saveCoverLetter(coverLetterText, jobData, outputName);
+        } catch (error: unknown) {
+          draftSpinner.fail("Cover letter draft failed");
+          logger.error(error instanceof Error ? error.message : String(error));
+        }
       }
-      logger.info("Company Angles:");
-      for (const a of coverLetterGuidance.companyAngles) logger.info(`  🏢 ${a}`);
     } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : String(error);
       guidanceSpinner.fail("Cover letter guidance failed");
-      logger.error(errMsg);
+      logger.error(error instanceof Error ? error.message : String(error));
       coverLetterGuidance = { keyPoints: [], strengthsToEmphasize: [], gapsToAddress: [], companyAngles: [] };
-    }
-
-    if (coverLetterGuidance.keyPoints.length > 0) {
-      const draftSpinner = ora("Writing cover letter draft...").start();
-      try {
-        const coverLetterText = await generateCoverLetterDraft(jobData, resume, coverLetterGuidance, "professional");
-        draftSpinner.succeed("Cover letter draft generated");
-        saveCoverLetter(coverLetterText, jobData, outputName);
-      } catch (error: unknown) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        draftSpinner.fail("Cover letter draft failed");
-        logger.error(errMsg);
-      }
     }
   } else {
     logger.info("Skipping cover letter (--no-cover-letter).");
     coverLetterGuidance = { keyPoints: [], strengthsToEmphasize: [], gapsToAddress: [], companyAngles: [] };
   }
 
-  // Step 6: Interview preparation
+  // Step 6: Interview prep
   const interviewSpinner = ora("Generating interview preparation...").start();
   let interviewPrep;
   try {
     interviewPrep = await generateInterviewPrep(jobData, resume);
     interviewSpinner.succeed(`Generated ${interviewPrep.likelyQuestions.length} interview questions`);
-
-    console.log();
-    logger.info("=== Interview Preparation ===");
-    logger.info("Likely Questions:");
-    for (let i = 0; i < interviewPrep.likelyQuestions.length; i++) {
-      const q = interviewPrep.likelyQuestions[i];
-      logger.info(`  ${i + 1}. ${q.question}`);
-      logger.info(`     → ${q.suggestedApproach}`);
-    }
-    console.log();
-    logger.info("Skills to Review:");
-    for (const s of interviewPrep.skillsToReview) logger.info(`  📖 ${s}`);
-    console.log();
-    logger.info("Company Research Points:");
-    for (const p of interviewPrep.companyResearchPoints) logger.info(`  🔍 ${p}`);
-    console.log();
-    logger.info("Talking Points:");
-    for (const t of interviewPrep.talkingPoints) logger.info(`  💬 ${t}`);
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
     interviewSpinner.fail("Interview prep failed");
-    logger.error(errMsg);
+    logger.error(error instanceof Error ? error.message : String(error));
     interviewPrep = { likelyQuestions: [], skillsToReview: [], companyResearchPoints: [], talkingPoints: [] };
   }
 
-  // Save complete report
+  // Step 7: Build complete report object
   const reportData = {
     jobTitle: jobData.jobTitle,
     companyName: jobData.companyName,
@@ -208,14 +159,32 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
     generatedAt: new Date().toISOString(),
   };
 
+  // Step 8: Save all reports
   const jsonPath = path.join(PATHS.reports, `application-${outputName}.json`);
   saveJSON(jsonPath, reportData);
 
+  // Markdown report
+  generateApplicationMarkdownReport(reportData, outputName);
+
+  // HTML report
+  if (options.html !== false) {
+    generateApplicationHTMLReport(reportData, outputName);
+  } else {
+    logger.info("Skipping HTML report (--no-html).");
+  }
+
+  // Final summary
   console.log();
   logger.success("=== Application Advisor Complete! ===");
-  logger.info(`Report JSON: ${jsonPath}`);
-  logger.info(`Cover Letter: reports/cover-letter-${outputName}.md`);
-  logger.warn("Markdown and HTML report generation not yet implemented.");
+  logger.info(`JSON:         ${jsonPath}`);
+  logger.info(`Markdown:     reports/application-${outputName}.md`);
+  if (options.html !== false) {
+    logger.info(`HTML:         reports/application-${outputName}.html`);
+  }
+  if (options.coverLetter !== false) {
+    logger.info(`Cover Letter: reports/cover-letter-${outputName}.md`);
+  }
+  logger.info(`\nOpen HTML report: open reports/application-${outputName}.html`);
 }
 
 // Direct execution support
