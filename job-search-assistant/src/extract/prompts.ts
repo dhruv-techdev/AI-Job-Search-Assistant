@@ -4,6 +4,8 @@ export function buildJobExtractionPrompt(pdfText: string, fileName: string): str
 RULES:
 - Extract ONLY information explicitly stated in the posting
 - Use null for any field where information is NOT available — do NOT guess or invent
+- For jobTitle and companyName: these must ALWAYS be strings — use "Unknown" if genuinely not found
+- For array fields (requiredSkills, preferredSkills, educationRequirements, responsibilities): always return an array — use [] if nothing found, NEVER null
 - For remoteStatus: use "remote", "hybrid", "onsite", or "not_listed"
 - For seniorityLevel: use "intern", "entry", "mid", "senior", "lead", "manager", or "not_listed"
 - For skills: separate required vs preferred. If the posting doesn't distinguish, put them all in requiredSkills
