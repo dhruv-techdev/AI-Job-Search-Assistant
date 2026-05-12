@@ -12,7 +12,7 @@ const reports = [
 
 export default function Reports() {
   return (
-    <section style={{ padding: '7rem 2rem', maxWidth: 1100, margin: '0 auto' }}>
+    <section className="mob-section-pad" style={{ padding: '7rem 2rem', maxWidth: 1100, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }} transition={{ duration: 0.6 }}
         style={{ marginBottom: '3rem' }}
@@ -25,7 +25,7 @@ export default function Reports() {
         </h2>
       </motion.div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'var(--border)' }}>
+      <div className="mob-grid-3" style={{ gap: '1px', background: 'var(--border)' }}>
         {reports.map((r, i) => (
           <motion.div key={r.title}
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}

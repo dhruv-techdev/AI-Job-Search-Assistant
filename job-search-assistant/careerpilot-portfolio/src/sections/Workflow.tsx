@@ -2,19 +2,19 @@ import React from 'react';
 import { motion } from 'framer-motion';
 
 const stages = [
-  { n: '01', t: 'Ingest PDFs', d: 'Scan postings/ for job PDFs, extract readable text via pdf-parse.' },
-  { n: '02', t: 'LLM Extraction', d: 'DeepSeek V3 converts raw text → structured JSON. Zod validates every field.' },
-  { n: '03', t: 'Company Intel', d: 'Tavily web search enriches data — company size, culture, recent news.' },
-  { n: '04', t: 'Market Analysis', d: 'Aggregate skill frequency, salary ranges, experience levels, remote trends.' },
-  { n: '05', t: 'Resume Parsing', d: 'Extract candidate skills, experience, projects, education, certifications.' },
-  { n: '06', t: 'Gap Analysis', d: 'Compare resume vs market. Classify gaps by effort with action plans.' },
-  { n: '07', t: 'Fit Scoring', d: '0–100 score against target job. Skill-by-skill match/partial/gap breakdown.' },
-  { n: '08', t: 'Report Generation', d: 'Resume suggestions, cover letter, interview prep → JSON + MD + HTML.' },
+  { n: '01', t: 'Ingest PDFs', d: 'Scan the postings/ directory for job PDFs. pdf-parse extracts raw text, a pre-processor strips header/footer artifacts and normalizes whitespace, and a confidence check flags unusable files before they enter the pipeline.' },
+  { n: '02', t: 'LLM Extraction', d: 'DeepSeek V3 converts each cleaned text blob into a structured JSON object with 20+ fields. A Zod schema validates every field on the first attempt; failures trigger a second-pass correction prompt that includes the exact Zod error message.' },
+  { n: '03', t: 'Company Research', d: 'Tavily live web search runs against the company name and role. Returns company size, engineering culture signals, recent funding, and tech stack mentions. Results are merged into the job object before any analysis.' },
+  { n: '04', t: 'Market Analysis', d: 'Aggregate all extracted postings into a market view: skill frequency rankings, salary percentile distribution, experience level breakdown (junior / mid / senior / staff), remote work patterns, and top education requirements.' },
+  { n: '05', t: 'Resume Parsing', d: 'DeepSeek V3 extracts a structured candidate profile from the resume PDF — hard skills, soft skills, work experience with dates and scope, projects with outcomes, education, certifications, and self-reported seniority signals.' },
+  { n: '06', t: 'Gap Analysis', d: 'Cross-reference the candidate profile against the full market dataset. Classify every missing skill by acquisition effort: quick wins, short-term, medium-term, and long-term. Generate concrete action plans and learning resources for each gap.' },
+  { n: '07', t: 'Fit Scoring', d: 'Score the candidate 0–100 against a specific target posting. Each required skill is matched (present), partial (adjacent experience), or gap (absent). Fit band classification: Strong Fit / Good Fit / Stretch / Growth Target.' },
+  { n: '08', t: 'Report Generation', d: 'Four parallel outputs: (1) JSON data file, (2) Markdown report for any editor, (3) self-contained HTML with score gauge and skill grid, (4) cover letter draft. All three formats are written atomically — no partial reports.' },
 ];
 
 export default function Workflow() {
   return (
-    <section id="workflow" style={{ padding: '7rem 2rem', maxWidth: 860, margin: '0 auto' }}>
+    <section id="workflow" className="mob-section-pad" style={{ padding: '7rem 2rem', maxWidth: 860, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }} transition={{ duration: 0.6 }}
         style={{ marginBottom: '3.5rem' }}

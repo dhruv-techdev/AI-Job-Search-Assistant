@@ -18,7 +18,7 @@ const techs = [
 
 export default function TechStack() {
   return (
-    <section id="tech" style={{ padding: '7rem 2rem', maxWidth: 1000, margin: '0 auto' }}>
+    <section id="tech" className="mob-section-pad" style={{ padding: '7rem 2rem', maxWidth: 1000, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }} transition={{ duration: 0.6 }}
         style={{ marginBottom: '3rem' }}

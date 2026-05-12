@@ -50,3 +50,43 @@ body {
 ::-webkit-scrollbar-track { background: var(--void); }
 ::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--neon); }
+
+/* Responsive grid utilities */
+.mob-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+.mob-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+.mob-pie-row { display: flex; align-items: center; gap: 1rem; }
+
+@media (max-width: 768px) {
+  .mob-grid-3,
+  .mob-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .mob-pie-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Reduce vertical section padding on mobile */
+  .mob-section-pad {
+    padding-top: 4rem !important;
+    padding-bottom: 4rem !important;
+  }
+
+  /* Architecture pre block: remove sticky on mobile */
+  .mob-arch-pre {
+    position: static !important;
+    font-size: 0.65rem !important;
+  }
+
+  /* Terminal: allow horizontal scroll on long lines */
+  .mob-terminal-scroll {
+    overflow-x: auto !important;
+  }
+
+  /* Pie chart container: full width on mobile when stacked */
+  .mob-pie-chart {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}

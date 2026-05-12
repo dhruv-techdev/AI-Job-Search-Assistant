@@ -66,7 +66,7 @@ const cardStyle = {
 
 export default function Charts() {
   return (
-    <section id="analytics" style={{ padding: '7rem 2rem', maxWidth: 1200, margin: '0 auto' }}>
+    <section id="analytics" className="mob-section-pad" style={{ padding: '7rem 2rem', maxWidth: 1200, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }} transition={{ duration: 0.6 }}
         style={{ marginBottom: '3.5rem' }}
@@ -82,7 +82,7 @@ export default function Charts() {
         </p>
       </motion.div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div className="mob-grid-2" style={{ gap: '1.5rem' }}>
         {/* Skills Bar Chart */}
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }} transition={{ duration: 0.5 }}
@@ -120,8 +120,8 @@ export default function Charts() {
           <div style={{ fontSize: '0.78rem', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', marginBottom: '1.25rem' }}>
             Work arrangement distribution
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <ResponsiveContainer width="55%" height={250}>
+          <div className="mob-pie-row">
+            <ResponsiveContainer className="mob-pie-chart" width="55%" height={250}>
               <PieChart>
                 <Pie data={remoteData} dataKey="value" cx="50%" cy="50%" innerRadius={55} outerRadius={85}
                   stroke="#000000" strokeWidth={3} paddingAngle={2}
