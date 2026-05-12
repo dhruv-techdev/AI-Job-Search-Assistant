@@ -46,7 +46,7 @@ const tree = `src/
 
 export default function Architecture() {
   return (
-    <section id="architecture" style={{ padding: '7rem 2rem', maxWidth: 1200, margin: '0 auto' }}>
+    <section id="architecture" className="mob-section-pad" style={{ padding: '7rem 2rem', maxWidth: 1200, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }} transition={{ duration: 0.6 }}
         style={{ marginBottom: '3rem' }}
@@ -59,8 +59,8 @@ export default function Architecture() {
         </h2>
       </motion.div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', alignItems: 'start' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: 'var(--border)' }}>
+      <div className="mob-grid-2" style={{ gap: '2rem', alignItems: 'start' }}>
+        <div className="mob-grid-2" style={{ gap: '1px', background: 'var(--border)' }}>
           {modules.map((m, i) => (
             <motion.div key={m.name}
               initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
@@ -77,6 +77,7 @@ export default function Architecture() {
 
         <motion.pre initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }} transition={{ duration: 0.6 }}
+          className="mob-arch-pre"
           style={{
             background: 'var(--surface)', border: '1px solid var(--border)',
             padding: '1.5rem', fontFamily: 'var(--font-mono)',

@@ -79,7 +79,7 @@ export default function Hero() {
 
         <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={4}
           style={{
-            display: 'flex', gap: '4rem', justifyContent: 'center',
+            display: 'flex', gap: '3rem', justifyContent: 'center',
             marginTop: '5rem', flexWrap: 'wrap',
             borderTop: '1px solid var(--border)', paddingTop: '3rem',
           }}
@@ -88,6 +88,8 @@ export default function Hero() {
             ['15+', 'Job Postings'],
             ['99', 'Requirements'],
             ['4', 'AI Models'],
+            ['8', 'Pipeline Stages'],
+            ['3', 'Output Formats'],
             ['$0', 'API Cost'],
           ].map(([num, label]) => (
             <div key={label} style={{ textAlign: 'center' }}>

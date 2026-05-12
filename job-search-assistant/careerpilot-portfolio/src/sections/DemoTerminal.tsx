@@ -78,7 +78,7 @@ export default function DemoTerminal() {
   }, [active, output.length]);
 
   return (
-    <section id="demo" style={{ padding: '5rem 2rem', maxWidth: 880, margin: '0 auto' }}>
+    <section id="demo" className="mob-section-pad" style={{ padding: '5rem 2rem', maxWidth: 880, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }} transition={{ duration: 0.6 }}
         style={{ marginBottom: '2rem' }}
@@ -111,7 +111,6 @@ export default function DemoTerminal() {
 
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)', borderTop: 'none',
-        overflow: 'hidden',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
@@ -125,7 +124,7 @@ export default function DemoTerminal() {
           </span>
         </div>
 
-        <div style={{ padding: '1.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.82rem', lineHeight: 1.9, minHeight: 380 }}>
+        <div className="mob-terminal-scroll" style={{ padding: '1.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.82rem', lineHeight: 1.9, minHeight: 380, overflowX: 'auto' }}>
           <div style={{ color: 'var(--text-1)', fontWeight: 500, marginBottom: '0.25rem' }}>{commands[active].prompt}</div>
           {output.slice(0, lines).map((line, i) => (
             <div key={i} style={{ color: lineColor(line) }}>
