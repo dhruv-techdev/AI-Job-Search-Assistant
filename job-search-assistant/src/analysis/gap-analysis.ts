@@ -1,7 +1,7 @@
 import fs from "fs";
 import { logger } from "../shared/logger.js";
 import { loadJSON, saveJSON, saveFile, PATHS } from "../shared/tools.js";
-import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { callLLMWithRetry, parseJSONLoose } from "../shared/llm.js";
 import {
   GapAnalysisSchema,
   type Resume,
@@ -208,12 +208,12 @@ export async function generateGapAnalysis(
   });
 
   // Parse and validate
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for gap analysis:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for gap analysis: ${detail}`);
   }
 
   const result = GapAnalysisSchema.safeParse(parsed);

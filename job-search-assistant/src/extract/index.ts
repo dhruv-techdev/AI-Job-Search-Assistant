@@ -11,7 +11,7 @@ import {
   PATHS,
 } from "../shared/tools.js";
 import { extractTextFromPDF } from "../shared/pdf.js";
-import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { callLLMWithRetry, parseJSONLoose } from "../shared/llm.js";
 import { JobPostingSchema, type JobPosting } from "../shared/types.js";
 import { buildJobExtractionPrompt } from "./prompts.js";
 import { researchCompany } from "./company-research.js";
@@ -46,12 +46,12 @@ async function extractJobPosting(pdfPath: string): Promise<JobPosting> {
   });
 
   // 3. Parse JSON from response
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for ${fileName}:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for ${fileName}: ${detail}`);
   }
 
   // 4. Validate with Zod schema
@@ -78,9 +78,18 @@ export async function runMarketAnalysis(options: MarketOptions = {}): Promise<vo
   ensureDirectories();
 
   // Step 1: Scan for PDFs
-  const pdfFiles = scanForPDFs(PATHS.postings);
+  // The resume lives in postings/ for the `gaps` command, so skip resume-like
+  // files here — they aren't job postings and would fail extraction.
+  const RESUME_LIKE = /resume|cv|curriculum/i;
+  const pdfFiles = scanForPDFs(PATHS.postings).filter((p) => {
+    if (RESUME_LIKE.test(path.basename(p))) {
+      logger.info(`Skipping resume-like file (not a job posting): ${path.basename(p)}`);
+      return false;
+    }
+    return true;
+  });
   if (pdfFiles.length === 0) {
-    logger.error("No PDF files found. Add job posting PDFs to the postings/ folder.");
+    logger.error("No job posting PDFs found in postings/ (resume files are skipped).");
     return;
   }
 

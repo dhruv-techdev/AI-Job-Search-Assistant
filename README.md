@@ -206,7 +206,7 @@ Reads every PDF in `postings/`, extracts structured job data, optionally enriche
 ### Step 3 — Analyze your resume against the market
 
 ```bash
-npm run gaps postings/my-resume.pdf
+npm run gaps -- postings/my-resume.pdf
 ```
 
 Extracts your resume from a PDF, compares your skills and experience against the market analysis generated in Step 2, and asks an LLM to produce a detailed gap analysis.
@@ -225,7 +225,7 @@ Extracts your resume from a PDF, compares your skills and experience against the
 ### Step 4 — Get application advice for a specific job *(in progress)*
 
 ```bash
-npm run advise postings/target-job.pdf
+npm run advise -- postings/target-job.pdf
 ```
 
 **Options:**
