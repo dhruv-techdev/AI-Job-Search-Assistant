@@ -5,6 +5,7 @@ import ora from "ora";
 import { logger } from "../shared/logger.js";
 import { loadJSON, saveJSON, saveFile, ensureDirectories, PATHS } from "../shared/tools.js";
 import { JobPostingSchema, ResumeSchema, MarketAnalysisSchema, GapAnalysisSchema, ApplicationReportSchema } from "../shared/types.js";
+import { classifyFit } from "../shared/fit.js";
 
 dotenv.config();
 
@@ -185,11 +186,7 @@ function evaluateReports(): EvalResult[] {
         // Check fit score classification
         const score = r.fitAssessment.overallScore;
         const rec = r.fitAssessment.recommendation;
-        let expectedRec = "";
-        if (score >= 80) expectedRec = "strong_fit";
-        else if (score >= 50) expectedRec = "good_fit";
-        else if (score >= 30) expectedRec = "stretch";
-        else expectedRec = "growth_target";
+        const expectedRec = classifyFit(score);
 
         if (rec !== expectedRec) {
           results.push({ category: "Reports", check: "Fit classification", status: "warn", detail: `Score ${score} classified as ${rec}, expected ${expectedRec}` });

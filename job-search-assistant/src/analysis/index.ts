@@ -5,7 +5,7 @@ import path from "path";
 import { logger } from "../shared/logger.js";
 import { validatePDFFile, saveJSON, ensureDirectories, PATHS } from "../shared/tools.js";
 import { extractTextFromPDF } from "../shared/pdf.js";
-import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { callLLMWithRetry, parseJSONLoose } from "../shared/llm.js";
 import { ResumeSchema, type Resume } from "../shared/types.js";
 import { buildResumeExtractionPrompt } from "./prompts.js";
 import {
@@ -37,17 +37,17 @@ async function extractResume(resumePath: string): Promise<Resume> {
   const rawResponse = await callLLMWithRetry(prompt, {
     model: "primary",
     temperature: 0.1,
-    maxTokens: 4096,
+    maxTokens: 16384,
     jsonMode: true,
     fallbackModels: ["secondary"],
   });
 
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for resume:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for resume: ${detail}`);
   }
 
   const result = ResumeSchema.safeParse(parsed);
@@ -67,7 +67,7 @@ export async function runGapAnalysis(resumePath: string, options: GapOptions = {
 
   // Step 1: Validate resume path
   if (!resumePath) {
-    logger.error("Usage: npm run gaps <path-to-resume.pdf>");
+    logger.error("Usage: npm run gaps -- <path-to-resume.pdf>");
     process.exit(1);
   }
 
@@ -161,7 +161,7 @@ const isDirectRun = process.argv[1]?.endsWith("analysis/index.ts") ||
 if (isDirectRun) {
   const resumePath = process.argv[2];
   if (!resumePath) {
-    logger.error("Usage: npm run gaps <path-to-resume.pdf>");
+    logger.error("Usage: npm run gaps -- <path-to-resume.pdf>");
     process.exit(1);
   }
   runGapAnalysis(resumePath);

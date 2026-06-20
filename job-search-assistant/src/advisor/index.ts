@@ -35,7 +35,7 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
   ensureDirectories();
 
   if (!jobPath) {
-    logger.error("Usage: npm run advise <path-to-job-posting.pdf>");
+    logger.error("Usage: npm run advise -- <path-to-job-posting.pdf>");
     process.exit(1);
   }
 
@@ -97,7 +97,7 @@ export async function runAdvisor(jobPath: string, options: AdvisorOptions = {}):
 
   // Step 4: Resume adaptations
   const resumeSpinner = ora("Generating resume suggestions...").start();
-  let resumeAdaptations;
+  let resumeAdaptations: Awaited<ReturnType<typeof generateResumeAdaptations>> = [];
   try {
     resumeAdaptations = await generateResumeAdaptations(jobData, resume);
     resumeSpinner.succeed(`Generated ${resumeAdaptations.length} resume suggestions`);
@@ -193,7 +193,7 @@ const isDirectRun = process.argv[1]?.endsWith("advisor/index.ts") ||
 if (isDirectRun) {
   const jobPath = process.argv[2];
   if (!jobPath) {
-    logger.error("Usage: npm run advise <path-to-job-posting.pdf>");
+    logger.error("Usage: npm run advise -- <path-to-job-posting.pdf>");
     process.exit(1);
   }
   runAdvisor(jobPath);

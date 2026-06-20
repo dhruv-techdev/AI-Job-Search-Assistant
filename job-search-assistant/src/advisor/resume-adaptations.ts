@@ -1,5 +1,5 @@
 import { logger } from "../shared/logger.js";
-import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { callLLMWithRetry, parseJSONLoose } from "../shared/llm.js";
 import type { JobPosting, Resume, ApplicationReport } from "../shared/types.js";
 import { z } from "zod";
 
@@ -13,7 +13,7 @@ const ResumeAdaptationsSchema = z.array(
 ).min(3).max(5);
 
 function buildResumeAdaptationPrompt(job: JobPosting, resume: Resume): string {
-  return `You are a professional resume consultant. Generate 4-6 specific resume adaptation suggestions for this candidate applying to this job.
+  return `You are a professional resume consultant. Generate 3-5 specific resume adaptation suggestions for this candidate applying to this job.
 
 TARGET JOB:
 - Title: ${job.jobTitle}
@@ -74,12 +74,12 @@ export async function generateResumeAdaptations(
     fallbackModels: ["secondary", "creative"],
   });
 
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for resume adaptations:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for resume adaptations: ${detail}`);
   }
 
   const result = ResumeAdaptationsSchema.safeParse(parsed);

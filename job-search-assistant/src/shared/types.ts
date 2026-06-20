@@ -53,6 +53,17 @@ export type JobPosting = z.infer<typeof JobPostingSchema>;
 
 // ========== Resume Schema ==========
 
+/**
+ * A required text field that tolerates the null/undefined free LLMs emit for
+ * "not found", coercing to a fallback so one missing field doesn't reject the
+ * whole resume. Output type stays `string`, so downstream code is unaffected.
+ */
+const llmString = (fallback: string) =>
+  z
+    .string()
+    .nullish()
+    .transform((v) => (v && v.trim() ? v : fallback));
+
 export const ResumeSchema = z.object({
   candidateName: z.string().min(1),
   email: z.string().nullable(),
@@ -63,8 +74,8 @@ export const ResumeSchema = z.object({
   softSkills: z.array(z.string()),
   workExperience: z.array(
     z.object({
-      title: z.string(),
-      company: z.string(),
+      title: llmString("Unknown Role"),
+      company: llmString("Unknown Company"),
       duration: z.string().nullable(),
       responsibilities: z.array(z.string()),
       skills: z.array(z.string()),
@@ -72,16 +83,16 @@ export const ResumeSchema = z.object({
   ),
   education: z.array(
     z.object({
-      degree: z.string(),
-      institution: z.string(),
+      degree: llmString("Unknown Degree"),
+      institution: llmString("Unknown Institution"),
       year: z.string().nullable(),
     })
   ),
   certifications: z.array(z.string()),
   projects: z.array(
     z.object({
-      name: z.string(),
-      description: z.string(),
+      name: llmString("Untitled Project"),
+      description: llmString(""),
       skills: z.array(z.string()),
     })
   ),

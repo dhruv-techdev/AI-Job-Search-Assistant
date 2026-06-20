@@ -4,7 +4,8 @@ import { z } from "zod";
 import { logger } from "../shared/logger.js";
 import { PATHS, loadJSON } from "../shared/tools.js";
 import { extractTextFromPDF } from "../shared/pdf.js";
-import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { callLLMWithRetry, parseJSONLoose } from "../shared/llm.js";
+import { FIT_THRESHOLDS } from "../shared/fit.js";
 import { buildJobExtractionPrompt } from "../extract/prompts.js";
 import {
   JobPostingSchema,
@@ -42,12 +43,12 @@ export async function extractTargetJob(jobPath: string): Promise<JobPosting> {
     fallbackModels: ["secondary", "creative"],
   });
 
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for job posting:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for job posting: ${detail}`);
   }
 
   const result = JobPostingSchema.safeParse(parsed);
@@ -120,7 +121,7 @@ MARKET CONTEXT:
 
 RULES:
 - overallScore: 0-100 reflecting fit for THIS specific job (not general readiness)
-- recommendation: "strong_fit" (85+), "good_fit" (65-84), "stretch" (45-64), "growth_target" (<45)
+- recommendation: "strong_fit" (${FIT_THRESHOLDS.strong_fit}+), "good_fit" (${FIT_THRESHOLDS.good_fit}-${FIT_THRESHOLDS.strong_fit - 1}), "stretch" (${FIT_THRESHOLDS.stretch}-${FIT_THRESHOLDS.good_fit - 1}), "growth_target" (<${FIT_THRESHOLDS.stretch})
 - skillMatches: evaluate EVERY required skill from the job — "match" (clearly has it), "partial" (related but not exact), "gap" (missing)
 - experienceMatch: one sentence assessing experience alignment
 - educationMatch: one sentence assessing education alignment
@@ -154,12 +155,12 @@ export async function generateFitAssessment(
     fallbackModels: ["secondary", "creative"],
   });
 
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for fit assessment:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for fit assessment: ${detail}`);
   }
 
   const result = FitAssessmentSchema.safeParse(parsed);

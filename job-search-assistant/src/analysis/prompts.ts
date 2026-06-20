@@ -6,7 +6,8 @@ RULES:
 - Separate hard skills (technical: languages, frameworks, tools, platforms) from soft skills (communication, leadership, teamwork)
 - For work experience: extract the job title, company, duration, key responsibilities, and skills used in each role
 - For projects: extract name, description, and technologies/skills used
-- Use null for fields that are genuinely not present in the resume
+- Use null ONLY for these optional top-level fields when genuinely absent: email, phone, location, professionalSummary (and duration/year inside entries)
+- Required text fields must ALWAYS be a string, never null: workExperience title/company, education degree/institution, project name. If a job title is unclear, use a best-effort label (e.g. the role's main function) or "Unknown" — never null
 - Do NOT invent or guess information — only extract what is explicitly stated
 - Extract keywords that are ATS-relevant (technologies, methodologies, certifications, domain terms)
 - Be thorough — scan every section including summary, experience descriptions, project descriptions, and education
