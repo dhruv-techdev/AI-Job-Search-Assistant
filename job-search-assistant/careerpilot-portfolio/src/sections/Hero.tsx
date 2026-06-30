@@ -65,7 +65,7 @@ export default function Hero() {
           }}>
             See Demo
           </a>
-          <a href="https://github.com" target="_blank" rel="noreferrer" style={{
+          <a href="https://github.com/dhruv-techdev/AI-Job-Search-Assistant" target="_blank" rel="noreferrer" style={{
             padding: '0.85rem 2.25rem', borderRadius: 2,
             background: 'transparent', color: 'var(--text-2)',
             border: '1px solid var(--border-glow)',
