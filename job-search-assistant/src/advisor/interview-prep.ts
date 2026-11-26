@@ -1,5 +1,5 @@
 import { logger } from "../shared/logger.js";
-import { callLLMWithRetry, extractJSON } from "../shared/llm.js";
+import { callLLMWithRetry, parseJSONLoose } from "../shared/llm.js";
 import type { JobPosting, Resume, ApplicationReport } from "../shared/types.js";
 import { z } from "zod";
 
@@ -76,12 +76,12 @@ Return ONLY valid JSON (no markdown, no backticks):
     fallbackModels: ["secondary"],
   });
 
-  const jsonStr = extractJSON(rawResponse);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    throw new Error(`LLM returned invalid JSON for interview prep:\n${jsonStr.substring(0, 300)}`);
+    parsed = parseJSONLoose(rawResponse);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`LLM returned invalid JSON for interview prep: ${detail}`);
   }
 
   const result = InterviewPrepSchema.safeParse(parsed);

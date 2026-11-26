@@ -4,6 +4,31 @@ import { logger } from "./logger.js";
 import { validatePDFFile } from "./tools.js";
 
 /**
+ * Runs the parser with pdf.js's noisy font warnings (e.g. "Warning: TT:
+ * undefined function: 32") filtered out, restoring console afterward.
+ */
+async function parseQuietly(buffer: Buffer) {
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const isFontNoise = (args: unknown[]) =>
+    typeof args[0] === "string" && /^Warning: TT/.test(args[0]);
+
+  console.log = (...args: unknown[]) => {
+    if (!isFontNoise(args)) originalLog(...args);
+  };
+  console.warn = (...args: unknown[]) => {
+    if (!isFontNoise(args)) originalWarn(...args);
+  };
+
+  try {
+    return await pdf(buffer);
+  } finally {
+    console.log = originalLog;
+    console.warn = originalWarn;
+  }
+}
+
+/**
  * Extracts text content from a PDF file.
  * Returns the extracted text or throws on failure.
  */
@@ -18,7 +43,7 @@ export async function extractTextFromPDF(filePath: string): Promise<string> {
 
   try {
     const buffer = fs.readFileSync(filePath);
-    const data = await pdf(buffer);
+    const data = await parseQuietly(buffer);
 
     const text = data.text?.trim();
 

@@ -148,7 +148,7 @@ function analyzeJobTrends(jobs: JobPosting[]) {
   const insights: string[] = [];
   const companySizes = jobs
     .map((j) => j.companyResearch?.companySize)
-    .filter((v): v is string => v !== null);
+    .filter((v): v is string => v != null);
   if (companySizes.length > 0) {
     insights.push(`Company sizes range from: ${[...new Set(companySizes)].join(", ")}`);
   }

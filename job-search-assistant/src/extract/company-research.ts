@@ -207,7 +207,7 @@ export async function researchCompany(companyName: string): Promise<CompanyResea
 
     const research: CompanyResearch = {
       companySize: extractCompanySize(allSnippets),
-      recentNews: extractRecentNews(cultureSnippets),
+      recentNews: extractRecentNews(allSnippets),
       cultureSignals: extractCultureSignals(allSnippets),
     };
 

@@ -4,10 +4,27 @@ import { logger } from "./logger.js";
 
 dotenv.config();
 
-const client = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY || "",
-});
+let client: OpenAI | null = null;
+
+/**
+ * Lazily constructs the OpenRouter client so missing credentials surface as a
+ * clear, actionable message instead of a stack trace at import time.
+ */
+function getClient(): OpenAI {
+  if (client) return client;
+
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "OPENROUTER_API_KEY is not set. Add it to job-search-assistant/.env\n" +
+      "  Example:  OPENROUTER_API_KEY=sk-or-v1-...\n" +
+      "  Get a free key at https://openrouter.ai/keys"
+    );
+  }
+
+  client = new OpenAI({ baseURL: "https://openrouter.ai/api/v1", apiKey });
+  return client;
+}
 
 export const MODELS = {
   primary: "openai/gpt-oss-20b:free",
@@ -40,7 +57,7 @@ export async function callLLM(
   logger.debug(`Calling ${modelId}...`);
 
   try {
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: modelId,
       messages: [
         { role: "system", content: systemPrompt },
@@ -83,6 +100,10 @@ export async function callLLMWithRetry(
     fallbackModels = ["secondary", "creative"],
     ...llmOptions
   } = options;
+
+  // Validate credentials once up front so a missing key fails fast with a clear
+  // message instead of being retried across every model.
+  getClient();
 
   const modelsToTry: ModelKey[] = [
     llmOptions.model || "primary",
@@ -142,4 +163,66 @@ export function extractJSON(raw: string): string {
   if (bracketMatch) return bracketMatch[0];
 
   return trimmed;
+}
+
+/**
+ * Repairs the malformed JSON free models commonly emit: raw control characters
+ * inside string literals, an unterminated trailing string, a trailing comma,
+ * and unclosed brackets from a truncated response. Best-effort — walks the
+ * string tracking quote/escape state and a bracket stack, then closes anything
+ * left open so the result has a chance of parsing.
+ */
+function repairJSON(input: string): string {
+  let out = "";
+  let inStr = false;
+  let escaped = false;
+  const stack: string[] = [];
+
+  for (const ch of input) {
+    if (inStr) {
+      if (escaped) { out += ch; escaped = false; continue; }
+      if (ch === "\\") { out += ch; escaped = true; continue; }
+      if (ch === '"') { out += ch; inStr = false; continue; }
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") { out += "\\r"; continue; }
+      if (ch === "\t") { out += "\\t"; continue; }
+      out += ch;
+      continue;
+    }
+    if (ch === '"') { inStr = true; out += ch; continue; }
+    if (ch === "{" || ch === "[") { stack.push(ch); out += ch; continue; }
+    if (ch === "}" || ch === "]") {
+      stack.pop();
+      out = out.replace(/,\s*$/, ""); // drop a trailing comma before this close
+      out += ch;
+      continue;
+    }
+    out += ch;
+  }
+
+  if (inStr) out += '"';            // close an unterminated string
+  out = out.replace(/,\s*$/, "");   // drop a dangling trailing comma
+  while (stack.length) {            // close brackets left open by truncation
+    out += stack.pop() === "{" ? "}" : "]";
+  }
+  return out;
+}
+
+/**
+ * Extracts and parses JSON from a raw LLM response, attempting a repair pass
+ * before giving up. Throws a SyntaxError that includes the parser message and
+ * the tail of the payload (where truncation shows up) for real diagnostics.
+ */
+export function parseJSONLoose(raw: string): unknown {
+  const jsonStr = extractJSON(raw);
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    try {
+      return JSON.parse(repairJSON(jsonStr));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new SyntaxError(`${msg} | tail: …${jsonStr.slice(-160)}`);
+    }
+  }
 }

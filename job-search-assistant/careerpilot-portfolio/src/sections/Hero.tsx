@@ -65,7 +65,7 @@ export default function Hero() {
           }}>
             See Demo
           </a>
-          <a href="https://github.com" target="_blank" rel="noreferrer" style={{
+          <a href="https://github.com/dhruv-techdev/AI-Job-Search-Assistant" target="_blank" rel="noreferrer" style={{
             padding: '0.85rem 2.25rem', borderRadius: 2,
             background: 'transparent', color: 'var(--text-2)',
             border: '1px solid var(--border-glow)',
@@ -78,11 +78,7 @@ export default function Hero() {
         </motion.div>
 
         <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={4}
-          style={{
-            display: 'flex', gap: '3rem', justifyContent: 'center',
-            marginTop: '5rem', flexWrap: 'wrap',
-            borderTop: '1px solid var(--border)', paddingTop: '3rem',
-          }}
+          className="hero-stats"
         >
           {[
             ['15+', 'Job Postings'],
@@ -92,15 +88,15 @@ export default function Hero() {
             ['3', 'Output Formats'],
             ['$0', 'API Cost'],
           ].map(([num, label]) => (
-            <div key={label} style={{ textAlign: 'center' }}>
+            <div key={label} className="hero-stat">
               <div style={{
                 fontSize: '2.2rem', fontWeight: 700,
                 fontFamily: 'var(--font-mono)',
                 color: 'var(--text-1)', lineHeight: 1,
               }}>{num}</div>
-              <div style={{
+              <div className="hero-stat-label" style={{
                 fontSize: '0.7rem', color: 'var(--text-2)',
-                textTransform: 'uppercase', letterSpacing: '1.5px',
+                textTransform: 'uppercase',
                 fontFamily: 'var(--font-mono)', marginTop: '0.5rem',
               }}>{label}</div>
             </div>

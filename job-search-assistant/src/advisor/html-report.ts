@@ -1,13 +1,16 @@
 import path from "path";
 import { logger } from "../shared/logger.js";
 import { saveFile, PATHS } from "../shared/tools.js";
+import { classifyFit } from "../shared/fit.js";
 import type { ApplicationReport } from "../shared/types.js";
 
 function getScoreColor(score: number): string {
-  if (score >= 80) return "#22c55e";
-  if (score >= 50) return "#3b82f6";
-  if (score >= 30) return "#f59e0b";
-  return "#ef4444";
+  switch (classifyFit(score)) {
+    case "strong_fit": return "#22c55e";
+    case "good_fit": return "#3b82f6";
+    case "stretch": return "#f59e0b";
+    default: return "#ef4444";
+  }
 }
 
 function getRecLabel(rec: string): string {
