@@ -56,7 +56,46 @@ body {
 .mob-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
 .mob-pie-row { display: flex; align-items: center; gap: 1rem; }
 
+/* Hero stats row: centered flex row on desktop, even 2-col grid on mobile */
+.hero-stats {
+  display: flex;
+  gap: 3rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 3rem;
+}
+
+.hero-stat {
+  text-align: center;
+}
+
+.hero-stat-label {
+  letter-spacing: 1.5px;
+}
+
 @media (max-width: 768px) {
+  /* Two content-width columns, centered as a block; items left-aligned
+     so numbers and labels share a common left edge in each column. */
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    justify-content: center;
+    row-gap: 2.5rem;
+    column-gap: clamp(1.5rem, 10vw, 3.5rem);
+    margin-top: 3.5rem;
+    padding-top: 2.5rem;
+  }
+
+  .hero-stat {
+    text-align: left;
+  }
+
+  .hero-stat-label {
+    letter-spacing: 1px;
+  }
+
   .mob-grid-3,
   .mob-grid-2 {
     grid-template-columns: 1fr;
